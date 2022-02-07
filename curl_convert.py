@@ -4,6 +4,9 @@ import sublime_plugin
 import json
 import argparse
 import shlex
+from collections import namedtuple
+
+ParsedArgsTuple = namedtuple('ParsedArgs', ['method', 'url', 'data', 'data_type', 'headers', 'verify', 'auth'])
 
 settings = sublime.load_settings("CurlConvert.sublime-settings")
 
@@ -25,12 +28,57 @@ parser.add_argument('--compressed', action='store_true')
 
 def parse_args(args=None, namespace=None):
     try:
-        args, argv = parser.parse_known_args(args, namespace)
+        parsed_args, argv = parser.parse_known_args(args, namespace)
     except SystemExit:
         return None
     if argv:
         return None
-    return args
+
+    url = parsed_args.url
+
+    method = 'get'
+    if parsed_args.request:
+        method = parsed_args.request
+
+    post_data = parsed_args.data or parsed_args.data_binary or ''
+    if post_data:
+        if not parsed_args.request:
+            method = 'post'
+
+    data_type = 'data'
+    headers_dict = {}
+    for header in parsed_args.header:
+        key, value = header.split(':', 1)
+        if key.lower().strip() == 'content-type' and value.lower().strip() == 'application/json':
+            data_type = 'json'
+            post_data = json2pretty(post_data)
+        else:
+            headers_dict[key] = value.strip()
+    if parsed_args.user_agent:
+        headers_dict['User-Agent'] = parsed_args.user_agent
+
+    if post_data and data_type == 'data':
+        post_data = "'{}'".format(post_data)
+
+    auth = ''
+    if parsed_args.user:
+        auth = tuple(parsed_args.user.split(':'))
+
+    verify = ''
+    if parsed_args.insecure:
+        verify = 'False'
+
+    headers = dict2pretty(headers_dict)
+
+    return ParsedArgsTuple(
+        method=method,
+        url=url,
+        data=post_data,
+        data_type=data_type,
+        headers=headers,
+        verify=verify,
+        auth=auth
+    )
 
         
 def dict2pretty(the_dict, indent=4):
@@ -63,53 +111,23 @@ class CurlPythonCommand(sublime_plugin.TextCommand):
 
     def convert2python(self, command_text):
         text = shlex.split(command_text)
-        parsed_args = parse_args(text)
-        if parsed_args is None:
+        parsed_args_tuple = parse_args(text)
+        if parsed_args_tuple is None:
             return command_text
             
         base_indent = ' ' * settings.get("base_indent")
 
-        method = 'get'
-        if parsed_args.request:
-            method = parsed_args.request
+        method, url, data, data_type, headers, verify, auth = parsed_args_tuple
 
-        post_data = parsed_args.data or parsed_args.data_binary or ''
-        if post_data:
-            if not parsed_args.request:
-                method = 'post'
-
-        data_arg = 'data'
-        headers_dict = {}
-        for header in parsed_args.header:
-            key, value = header.split(':', 1)
-            if key.lower().strip() == 'content-type' and value.lower().strip() == 'application/json':
-                data_arg = 'json'
-                post_data = json2pretty(post_data)
-            else:
-                headers_dict[key] = value.strip()
-        if parsed_args.user_agent:
-            headers_dict['User-Agent'] = parsed_args.user_agent
-
-        if post_data and data_arg == 'data':
-            post_data = "'{}'".format(post_data)
-
-        auth_data = ''
-        if parsed_args.user:
-            auth_data = tuple(parsed_args.user.split(':'))
-
-        verify = ''
-        if parsed_args.insecure:
-            verify = 'False'
-
-        result = """requests.{method}('{url}'{headers}{data}{auth_data}{verify}\n)""".format(
+        result = """requests.{method}('{url}'{headers}{data}{auth}{verify}\n)""".format(
             method=method.lower(),
-            url=parsed_args.url,
+            url=url,
             headers=",\n{}headers = {}".format(
-                base_indent, dict2pretty(headers_dict)) if headers_dict else '',
+                base_indent, headers) if headers else '',
             data=",\n{}{} = {}".format(
-                base_indent, data_arg, post_data) if post_data else '',
-            auth_data=",\n{}auth = {}".format(
-                base_indent, auth_data) if auth_data else '',
+                base_indent, data_type, data) if data else '',
+            auth=",\n{}auth = {}".format(
+                base_indent, auth) if auth else '',
             verify=",\n{}verify = {}".format(
                 base_indent, verify) if verify else ''
         )
