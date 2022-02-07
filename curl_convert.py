@@ -24,7 +24,10 @@ parser.add_argument('--compressed', action='store_true')
 
 
 def parse_args(args=None, namespace=None):
-    args, argv = parser.parse_known_args(args, namespace)
+    try:
+        args, argv = parser.parse_known_args(args, namespace)
+    except SystemExit:
+        return None
     if argv:
         return None
     return args
