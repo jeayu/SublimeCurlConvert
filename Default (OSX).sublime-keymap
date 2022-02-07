@@ -1,0 +1,3 @@
+[
+  { "keys": ["control+c+p"], "command": "curl_python" },
+]
