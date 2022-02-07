@@ -9,6 +9,10 @@
             {
                 "caption": "Convert curl -> python",
                 "command": "curl_python"
+            },
+            {
+                "caption": "Convert curl -> java",
+                "command": "curl_java"
             }
         ],
         "id": "curl-convert"

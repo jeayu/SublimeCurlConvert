@@ -2,5 +2,9 @@
     {
         "caption": "curl convert: python",
         "command": "curl_python"
+    },
+    {
+        "caption": "curl convert: java",
+        "command": "curl_java"
     }
 ]

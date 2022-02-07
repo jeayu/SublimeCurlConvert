@@ -26,9 +26,9 @@ parser.add_argument('-s','--silent', action='store_true')
 parser.add_argument('--compressed', action='store_true')
 
 
-def parse_args(args=None, namespace=None):
+def parse_args(args, convert_json=False):
     try:
-        parsed_args, argv = parser.parse_known_args(args, namespace)
+        parsed_args, argv = parser.parse_known_args(args=args, namespace=None)
     except SystemExit:
         return None
     if argv:
@@ -51,7 +51,10 @@ def parse_args(args=None, namespace=None):
         key, value = header.split(':', 1)
         if key.lower().strip() == 'content-type' and value.lower().strip() == 'application/json':
             data_type = 'json'
-            post_data = json2pretty(post_data)
+            if convert_json:
+                post_data = json2pretty(post_data)
+            else:
+                headers_dict[key] = value.strip()
         else:
             headers_dict[key] = value.strip()
     if parsed_args.user_agent:
@@ -68,17 +71,19 @@ def parse_args(args=None, namespace=None):
     if parsed_args.insecure:
         verify = 'False'
 
-    headers = dict2pretty(headers_dict)
-
     return ParsedArgsTuple(
         method=method,
         url=url,
         data=post_data,
         data_type=data_type,
-        headers=headers,
+        headers=headers_dict,
         verify=verify,
         auth=auth
     )
+
+def parse_curl_command(command_text, convert_json=False):
+    text = shlex.split(command_text)
+    return parse_args(text, convert_json)
 
         
 def dict2pretty(the_dict, indent=4):
@@ -110,14 +115,14 @@ class CurlPythonCommand(sublime_plugin.TextCommand):
                 self.view.replace(edit, region, text)
 
     def convert2python(self, command_text):
-        text = shlex.split(command_text)
-        parsed_args_tuple = parse_args(text)
+        parsed_args_tuple = parse_curl_command(command_text, True)
         if parsed_args_tuple is None:
             return command_text
             
         base_indent = ' ' * settings.get("base_indent")
 
         method, url, data, data_type, headers, verify, auth = parsed_args_tuple
+        headers = dict2pretty(headers)
 
         result = """requests.{method}('{url}'{headers}{data}{auth}{verify}\n)""".format(
             method=method.lower(),
@@ -131,5 +136,70 @@ class CurlPythonCommand(sublime_plugin.TextCommand):
             verify=",\n{}verify = {}".format(
                 base_indent, verify) if verify else ''
         )
+        return result
+
+class CurlJavaCommand(sublime_plugin.TextCommand):
+
+    def run(self, edit):
+        for region in self.view.sel():
+            if not region.empty():
+                text = self.view.substr(region)
+                command_text = text.replace("\\\n", " ")
+                text = self.convert2java(command_text)
+                self.view.replace(edit, region, text)
+
+    def convert2java(self, command_text):
+        parsed_args_tuple = parse_curl_command(command_text)
+        if parsed_args_tuple is None:
+            return command_text
+            
+        base_indent = ' ' * settings.get("base_indent")
+
+        method, url, data, data_type, headers, verify, auth = parsed_args_tuple
+
+        headers_code = "\n".join(['{base_indent}{base_indent}httpConn.setRequestProperty("{key}", "{value}");'.format(
+            base_indent=base_indent, key=x[0], value=x[1]) for x in headers.items()])
+
+        data_code = ''
+        if data:
+            data_code = """
+        httpConn.setDoOutput(true);
+        OutputStreamWriter writer = new OutputStreamWriter(httpConn.getOutputStream());
+        writer.write("{data}");
+        writer.flush();
+        writer.close();
+        httpConn.getOutputStream().close();
+        """.format(data=double_quotes(data))
+
+        auth_code = ''
+        if auth:
+            auth_code = """
+        byte[] message = ("{auth_user}:{auth_pwd}").getBytes("UTF-8");
+        String basicAuth = DatatypeConverter.printBase64Binary(message);
+        httpConn.setRequestProperty("Authorization", "Basic " + basicAuth);
+        """.format(auth_user=auth[0], auth_pwd=auth[1])
+
+        result = """
+    public static void main(String[] args) throws IOException {{
+        URL url = new URL("{url}");
+        HttpURLConnection httpConn = (HttpURLConnection) url.openConnection();
+        httpConn.setRequestMethod("{method}");
+{headers_code}{auth_code}{data_code}
+        InputStream responseStream = httpConn.getResponseCode() / 100 == 2
+                ? httpConn.getInputStream()
+                : httpConn.getErrorStream();
+        Scanner s = new Scanner(responseStream).useDelimiter("\\\\A");
+        String response = s.hasNext() ? s.next() : "";
+        System.out.println(response);
+    }}
+
+""".format(
+            method=method.upper(),
+            url=url,
+            headers_code=headers_code,
+            auth_code=auth_code,
+            data_code=data_code
+        )
+
         return result
 
