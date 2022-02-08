@@ -8,7 +8,8 @@ from collections import namedtuple
 
 ParsedArgsTuple = namedtuple('ParsedArgs', ['method', 'url', 'data', 'data_type', 'headers', 'verify', 'auth'])
 
-settings = sublime.load_settings("CurlConvert.sublime-settings")
+INDENT=4
+BASE_INDENT = ' ' * INDENT
 
 parser = argparse.ArgumentParser(prog="")
 parser.add_argument('command')
@@ -86,18 +87,18 @@ def parse_curl_command(command_text, convert_json=False):
     return parse_args(text, convert_json)
 
         
-def dict2pretty(the_dict, indent=4):
+def dict2pretty(the_dict):
     if not the_dict:
         return ''
-    return ("\n" + " " * indent).join(
-        json.dumps(the_dict, sort_keys=True, indent=indent, separators=(',', ': ')).splitlines())
+    return ("\n" + " " * INDENT).join(
+        json.dumps(the_dict, sort_keys=True, indent=INDENT, separators=(',', ': ')).splitlines())
 
 
-def json2pretty(json_data, indent=4):
+def json2pretty(json_data):
     if not json_data:
         return ''
-    return ("\n" + " " * indent).join(
-        json.dumps(json.loads(json_data), sort_keys=True, indent=indent).splitlines())
+    return ("\n" + " " * INDENT).join(
+        json.dumps(json.loads(json_data), sort_keys=True, indent=INDENT).splitlines())
 
 
 def double_quotes(text):
@@ -118,23 +119,25 @@ class CurlPythonCommand(sublime_plugin.TextCommand):
         parsed_args_tuple = parse_curl_command(command_text, True)
         if parsed_args_tuple is None:
             return command_text
-            
-        base_indent = ' ' * settings.get("base_indent")
 
         method, url, data, data_type, headers, verify, auth = parsed_args_tuple
         headers = dict2pretty(headers)
 
-        result = """requests.{method}('{url}'{headers}{data}{auth}{verify}\n)""".format(
+        result = """\
+requests.{method}(
+    url='{url}'{headers}{data}{auth}{verify}
+)
+""".format(
             method=method.lower(),
             url=url,
-            headers=",\n{}headers = {}".format(
-                base_indent, headers) if headers else '',
-            data=",\n{}{} = {}".format(
-                base_indent, data_type, data) if data else '',
-            auth=",\n{}auth = {}".format(
-                base_indent, auth) if auth else '',
-            verify=",\n{}verify = {}".format(
-                base_indent, verify) if verify else ''
+            headers=",\n{}headers={}".format(
+                BASE_INDENT, headers) if headers else '',
+            data=",\n{}{}={}".format(
+                BASE_INDENT, data_type, data) if data else '',
+            auth=",\n{}auth={}".format(
+                BASE_INDENT, auth) if auth else '',
+            verify=",\n{}verify={}".format(
+                BASE_INDENT, verify) if verify else ''
         )
         return result
 
@@ -152,13 +155,11 @@ class CurlJavaCommand(sublime_plugin.TextCommand):
         parsed_args_tuple = parse_curl_command(command_text)
         if parsed_args_tuple is None:
             return command_text
-            
-        base_indent = ' ' * settings.get("base_indent")
 
         method, url, data, data_type, headers, verify, auth = parsed_args_tuple
 
         headers_code = "\n".join(['{base_indent}{base_indent}httpConn.setRequestProperty("{key}", "{value}");'.format(
-            base_indent=base_indent, key=x[0], value=x[1]) for x in headers.items()])
+            base_indent=BASE_INDENT, key=x[0], value=x[1]) for x in headers.items()])
 
         data_code = ''
         if data:
