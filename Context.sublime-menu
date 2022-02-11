@@ -7,12 +7,20 @@
         "caption": "CurlConvert",
         "children": [
             {
-                "caption": "Convert curl -> python",
+                "caption": "Convert curl -> Python",
                 "command": "curl_python"
             },
             {
-                "caption": "Convert curl -> java",
+                "caption": "Convert curl -> Java",
                 "command": "curl_java"
+            },
+            {
+                "caption": "Convert raw http -> Python",
+                "command": "raw_http_python"
+            },
+            {
+                "caption": "Convert raw http -> Java",
+                "command": "raw_http_java"
             }
         ],
         "id": "curl-convert"

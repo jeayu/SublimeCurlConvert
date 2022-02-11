@@ -1,10 +1,19 @@
 [
     {
-        "caption": "curl convert: python",
+        "caption": "curl convert: Python",
         "command": "curl_python"
     },
     {
-        "caption": "curl convert: java",
+        "caption": "curl convert: Java",
         "command": "curl_java"
+    },
+    {
+        "caption": "raw http convert: Python",
+        "command": "raw_http_python"
+    },
+    {
+        "caption": "raw http convert: Java",
+        "command": "raw_http_java"
     }
+
 ]

@@ -2,8 +2,13 @@
 
 Convert curl commands to Python, Java for Sublime Text 3/4
 
-
 ![Demo](./demo.gif)
+
+## Features
+
+* Convert curl commands
+* Convert raw http request
+
 
 ## Installation
 Clone this repository into Sublime Text "Packages" directory.
